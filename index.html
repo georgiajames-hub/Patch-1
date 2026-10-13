@@ -387,10 +387,6 @@
 
     /* ---------------------------------------------------------------
        THE MAP
-       Draws a simple map as an image (SVG). It is an illustration, not
-       a live map.
-         pin = 1 shows the red damage pin
-         me  = 1 shows the blue "you are here" dot
        --------------------------------------------------------------- */
     const MAP = (pin, me) => `
       <svg class="map" viewBox="0 0 300 330" preserveAspectRatio="xMidYMid slice" aria-label="Map">
@@ -425,10 +421,7 @@
 
     /* ---------------------------------------------------------------
        CASES (the list of reported problems)
-       These three are already in the system. The community report
-       adds a fourth when it is submitted.
-       status goes:  Open -> Assigned -> Accepted -> Fixed
-       score is used to sort by urgency (higher = more urgent)
+       These three are already in the system, showing working data
        --------------------------------------------------------------- */
     let cases = [
       { id: 'C-101', title: 'Streetlight out',          type: 'Lighting',     loc: 'Smith St',    urgency: 'High',   score: 78, status: 'Open', desc: 'Light out at the crossing. Dark at night.' },
