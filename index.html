@@ -39,7 +39,7 @@
       --ink:  #14181b;   /* main text colour (near black) */
       --mut:  #5d686e;   /* muted grey text */
       --line: #d5dad9;   /* thin borders */
-      --or:   #f26a1b;   /* Patch orange (main buttons) */
+      --or:   #6495ED;   /* Patch blue (main buttons) */
       --ok:   #17855a;   /* green (accept / fixed) */
       --bad:  #c93a2b;   /* red (reject / critical) */
       --hd: 'Barlow Condensed', 'Arial Narrow', sans-serif;  /* heading font */
@@ -399,7 +399,6 @@
         <rect x="170" y="190" width="110" height="110" rx="10" fill="#c9dcc2"/>   <!-- green block -->
         <path d="M0 170H300M150 0V330M0 60L300 280" stroke="#fff" stroke-width="14" fill="none"/>   <!-- roads -->
         <path d="M0 170H300M150 0V330" stroke="#c7cdca" stroke-width="1.5" stroke-dasharray="6 6" fill="none"/>  <!-- road lines -->
-        <text x="34" y="92" font-size="11" fill="#3c6b3a" font-family="Barlow">Albert Park</text>
         ${me ? `
           <circle cx="95" cy="235" r="16" fill="#2b7fff33"/>
           <circle cx="95" cy="235" r="7" fill="#2b7fff" stroke="#fff" stroke-width="3"/>` : ''}
@@ -433,8 +432,8 @@
        --------------------------------------------------------------- */
     let cases = [
       { id: 'C-101', title: 'Streetlight out',          type: 'Lighting',     loc: 'Smith St',    urgency: 'High',   score: 78, status: 'Open', desc: 'Light out at the crossing. Dark at night.' },
-      { id: 'C-102', title: 'Broken bench',             type: 'Broken bench', loc: 'Albert Park', urgency: 'Medium', score: 62, status: 'Open', desc: 'Slat missing on the bench by the playground.' },
-      { id: 'C-103', title: 'Graffiti on toilet block', type: 'Graffiti',     loc: 'Albert Park', urgency: 'Low',    score: 30, status: 'Open', desc: 'Tagging on the east wall.' }
+      { id: 'C-102', title: 'Broken bench',             type: 'Broken bench', loc: 'Main Street Park', urgency: 'Medium', score: 62, status: 'Open', desc: 'Slat missing on the bench by the playground.' },
+      { id: 'C-103', title: 'Graffiti on toilet block', type: 'Graffiti',     loc: 'Main Street Park', urgency: 'Low',    score: 30, status: 'Open', desc: 'Tagging on the east wall.' }
     ];
 
 
@@ -501,7 +500,7 @@
       const pills = [
         ['c', 'Community phone'],
         ['b', 'Business desktop'],
-        ['w', 'Worker phone (Matt)']
+        ['w', 'Worker (matt)']
       ].map(([k, l]) => `<button class="${st.nav === k ? 'on' : ''}" onclick="go('${k}')">${l}</button>`).join('');
 
       /* The Hide / Show button always stays, so the menu can be brought back */
@@ -533,7 +532,7 @@
           <!-- Green banner appears once the report has been fixed -->
           ${m && m.status === 'Fixed' ? `<div class="ban">Your report was fixed by ${m.worker}. See the update below.</div>` : ''}
 
-          <div class="bar"><h2>Patch</h2><span>Albert Park</span></div>
+          <div class="bar"><h2>Patch</h2><span>Main Street Park</span></div>
 
           <div style="flex:1;min-height:0;position:relative">
             ${MAP(1, 1)}
@@ -578,7 +577,7 @@
             <b>Describe the problem</b>
             <textarea oninput="st.desc=this.value" placeholder="What is damaged and why is it a risk?">${st.desc}</textarea>
 
-            <div class="card" style="color:var(--mut)">Location: Albert Park, near the oak trees</div>
+            <div class="card" style="color:var(--mut)">Location: Main Street Park</div>
           </div>
 
           <!-- Submit stays disabled until a damage type is chosen -->
@@ -618,7 +617,7 @@
         id: 'C-104',
         title: st.type + ' in park',
         type: st.type,
-        loc: 'Albert Park, near the oak trees',
+        loc: 'Main Street Park',
         urgency: 'Critical',
         score: 95,                                   // highest score, so it sorts to the top
         status: 'Open',
