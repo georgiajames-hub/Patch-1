@@ -39,7 +39,7 @@
       --ink:  #14181b;   /* main text colour (near black) */
       --mut:  #5d686e;   /* muted grey text */
       --line: #d5dad9;   /* thin borders */
-      --or:   #6495ED;   /* Patch blue (main buttons) */
+      --or:   #6495ed;   /* Patch blue (main buttons) */
       --ok:   #17855a;   /* green (accept / fixed) */
       --bad:  #c93a2b;   /* red (reject / critical) */
       --hd: 'Barlow Condensed', 'Arial Narrow', sans-serif;  /* heading font */
@@ -231,7 +231,7 @@
 
     /* Tag colours for urgency levels and the Fixed status */
     .Critical { background: #c93a2b; color: #fff; }
-    .High     { background: #f26a1b; color: #fff; }
+    .High     { background: #6495ed; color: #fff; }
     .Medium   { background: #ffc933; color: #14181b; }
     .Low      { background: #cfd8d5; }
     .Fixed    { background: var(--ok); color: #fff; }
@@ -252,9 +252,9 @@
       justify-content: center;
       gap: 22px;
     }
-    #load h1 { font-size: 88px; color: #f26a1b; line-height: 1; }
+    #load h1 { font-size: 88px; color: #6495ed; line-height: 1; }
     #load .t { width: min(260px, 70vw); height: 8px; background: #ffffff2a; border-radius: 9px; overflow: hidden; }
-    #load .t i { display: block; height: 100%; background: #f26a1b; width: 0; animation: ld 10s linear forwards; }  /* "10s" = loading time */
+    #load .t i { display: block; height: 100%; background: #6495ed; width: 0; animation: ld 10s linear forwards; }  /* "10s" = loading time */
     @keyframes ld { to { width: 100%; } }
     #load button { background: none; color: #9aa7ad; font-size: 13px; }   /* "Skip loading" link */
 
