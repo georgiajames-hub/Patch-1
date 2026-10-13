@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!--
+  =====================================================================
+  PATCH - demo app
+  =====================================================================
+  One file, three screens, one shared set of data:
+
+    1. Community phone  - a resident reports a problem
+    2. Business desktop - council/business triages and assigns the case
+    3. Worker phone     - Matt accepts the job and marks it fixed
+
+  The file has three parts:
+    PART 1: <head>  - page title, fonts and all the CSS (colours, layout)
+    PART 2: <body>  - empty containers that JavaScript fills in
+    PART 3: <script> - all the logic (data, screens, button actions)
+
+  Nothing is saved between visits. Refreshing the page resets the demo.
+-->
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Patch</title>
+
+  <!-- Fonts from Google: Barlow Condensed for headings, Barlow for body text -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+
+  <style>
+
+    /* ===============================================================
+       COLOURS AND SETTINGS
+       Change the colours here and they update across the whole app.
+       =============================================================== */
+    :root {
+      --bg:   #e6e9e8;   /* page background */
+      --card: #ffffff;   /* white boxes */
+      --ink:  #14181b;   /* main text colour (near black) */
+      --mut:  #5d686e;   /* muted grey text */
+      --line: #d5dad9;   /* thin borders */
+      --or:   #f26a1b;   /* Patch orange (main buttons) */
+      --ok:   #17855a;   /* green (accept / fixed) */
+      --bad:  #c93a2b;   /* red (reject / critical) */
+      --hd: 'Barlow Condensed', 'Arial Narrow', sans-serif;  /* heading font */
+
+      box-sizing: border-box;
+      padding-top: env(safe-area-inset-top, 0px);       /* keeps content clear of the phone notch */
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* Dark mode: used automatically if the person's phone is set to dark */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme=light]) {
+        --bg: #101416; --card: #1b2124; --ink: #eef2f3; --mut: #9aa7ad; --line: #2d3639;
+      }
+    }
+    :root[data-theme=dark] {
+      --bg: #101416; --card: #1b2124; --ink: #eef2f3; --mut: #9aa7ad; --line: #2d3639;
+    }
+
+    /* ===============================================================
+       BASIC RESETS AND TEXT
+       =============================================================== */
+    * { box-sizing: border-box; margin: 0; }
+
+    html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.4 Barlow, system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* Headings use the condensed "road sign" font */
+    h1, h2, h3, .hd {
+      font-family: var(--hd);
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+
+    /* ===============================================================
+       BUTTONS
+       =============================================================== */
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-weight: 600;
+      background: var(--line);
+      color: var(--ink);
+    }
+
+    /* Orange outline when a button or field is selected with the keyboard */
+    button:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 3px solid var(--or);
+      outline-offset: 2px;
+    }
+
+    .pri { background: var(--or); color: #fff; }                              /* main orange button */
+    .ok  { background: var(--ok); color: #fff; }                              /* green button (Accept) */
+    .no  { background: transparent; border: 2px solid var(--bad); color: var(--bad); }  /* red outline (Reject) */
+
+    button:disabled { opacity: .5; cursor: default; }                         /* greyed-out button */
+
+    /* ===============================================================
+       TOP SWITCHER
+       The three pills at the top that flip between the three screens.
+       =============================================================== */
+    #sw {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      padding: 12px;
+      flex-wrap: wrap;
+    }
+    #sw button {
+      padding: 8px 14px;
+      border-radius: 99px;
+      background: var(--card);
+      border: 2px solid var(--line);
+    }
+    #sw button.on {                       /* the currently selected pill */
+      background: var(--ink);
+      color: var(--bg);
+      border-color: var(--ink);
+    }
+
+    /* The small "Hide menu / Show menu" button at the end of the switcher */
+    #sw button.swt {
+      background: none;
+      border: 0;
+      color: var(--mut);
+      font-size: 13px;
+      text-decoration: underline;
+    }
+
+    /* Only one of the three views is visible at a time */
+    .view { display: none; justify-content: center; padding: 6px 10px 30px; }
+    .view.on { display: flex; }
+
+    /* ===============================================================
+       PHONE FRAME
+       The black rounded rectangle that makes a screen look like a phone.
+       =============================================================== */
+    .ph {
+      position: relative;
+      width: 390px;
+      max-width: 100%;
+      height: 780px;
+      background: var(--bg);
+      border: 10px solid #14181b;
+      border-radius: 38px;
+      overflow: hidden;
+    }
+
+    /* A "screen" is one page inside the phone (home, report, etc.) */
+    .scr { position: absolute; inset: 0; overflow: auto; display: none; flex-direction: column; }
+    .scr.on { display: flex; }
+
+    /* Black header bar at the top of each phone screen */
+    .bar {
+      background: var(--ink);
+      color: var(--bg);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .bar h2 { font-size: 24px; flex: 1; }
+    .bar button { background: #ffffff26; color: inherit; padding: 6px 12px; }
+
+    /* ===============================================================
+       GENERAL BUILDING BLOCKS
+       =============================================================== */
+    .pad  { padding: 16px; display: flex; flex-direction: column; gap: 12px; }   /* padded content area */
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }  /* white box */
+
+    /* Damage-type buttons on the report page */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chips button { border-radius: 99px; padding: 8px 14px; background: var(--card); border: 2px solid var(--line); }
+    .chips button.on { border-color: var(--or); background: var(--or); color: #fff; }  /* selected type */
+
+    /* Description text box */
+    textarea {
+      width: 100%;
+      min-height: 90px;
+      border: 2px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      font: inherit;
+      background: var(--card);
+      color: var(--ink);
+    }
+
+    /* Photo upload area (dashed box). The real file input is hidden inside it. */
+    .up {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 150px;
+      border: 2px dashed var(--mut);
+      border-radius: 12px;
+      color: var(--mut);
+      cursor: pointer;
+      overflow: hidden;
+      text-align: center;
+    }
+    .up img   { width: 100%; max-height: 220px; object-fit: cover; }
+    .up input { display: none; }
+
+    /* Bottom bar that holds the Submit / Accept / Reject buttons.
+       "sticky" keeps it pinned to the bottom while the page scrolls. */
+    .foot {
+      margin-top: auto;
+      padding: 14px 16px;
+      background: var(--card);
+      border-top: 1px solid var(--line);
+      position: sticky;
+      bottom: 0;
+    }
+    .foot button { width: 100%; font-size: 17px; }
+
+    .map { width: 100%; display: block; background: #dfe6dc; }   /* the drawn map */
+
+    /* Small rounded tags such as "Critical" or "Open" */
+    .pill { display: inline-block; border-radius: 99px; padding: 2px 10px; font-weight: 600; font-size: 13px; background: var(--line); }
+
+    /* Tag colours for urgency levels and the Fixed status */
+    .Critical { background: #c93a2b; color: #fff; }
+    .High     { background: #f26a1b; color: #fff; }
+    .Medium   { background: #ffc933; color: #14181b; }
+    .Low      { background: #cfd8d5; }
+    .Fixed    { background: var(--ok); color: #fff; }
+
+    /* ===============================================================
+       LOADING SCREEN
+       Full-screen black cover with "Patch" and a bar that fills in 10 seconds.
+       =============================================================== */
+    #load {
+      position: fixed;
+      inset: 0;
+      z-index: 9;
+      background: #14181b;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+    }
+    #load h1 { font-size: 88px; color: #f26a1b; line-height: 1; }
+    #load .t { width: min(260px, 70vw); height: 8px; background: #ffffff2a; border-radius: 9px; overflow: hidden; }
+    #load .t i { display: block; height: 100%; background: #f26a1b; width: 0; animation: ld 10s linear forwards; }  /* "10s" = loading time */
+    @keyframes ld { to { width: 100%; } }
+    #load button { background: none; color: #9aa7ad; font-size: 13px; }   /* "Skip loading" link */
+
+    /* ===============================================================
+       BUSINESS DESKTOP LAYOUT
+       Two columns: case list on the left, selected case on the right.
+       =============================================================== */
+    .desk {
+      width: min(1180px, 100%);
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      min-height: 640px;
+      display: flex;
+      flex-direction: column;
+    }
+    .dg { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; flex: 1; }
+    .dg > div { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .dg > div:first-child { border-right: 1px solid var(--line); }
+
+    /* A clickable row in the case list or the worker list */
+    .row {
+      display: flex; gap: 10px; align-items: center;
+      padding: 10px;
+      border: 2px solid var(--line);
+      border-radius: 10px;
+      cursor: pointer;
+      background: var(--card);
+      width: 100%;
+      text-align: left;
+      color: var(--ink);
+    }
+    .row.on { border-color: var(--or); }   /* the selected case */
+    .row b  { flex: 1; }
+
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }   /* two equal columns */
+
+    /* Photo box. Shows a grey striped placeholder if no photo was uploaded. */
+    .ph-img {
+      height: 170px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: repeating-linear-gradient(135deg, #8b8f90, #8b8f90 12px, #9a9ea0 12px, #9a9ea0 24px);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      font-weight: 600;
+    }
+    .ph-img img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* ===============================================================
+       WORKER PHONE: JOB OFFER SCREEN
+       Map (left) and photo (right) side by side at the top,
+       then job details on a black background.
+       =============================================================== */
+    .top2 { display: grid; grid-template-columns: 1fr 1fr; height: 190px; flex: none; }
+    .top2 > div { overflow: hidden; height: 100%; min-width: 0; }
+    .top2 .map { height: 100%; }
+    .top2 .ph-img { border-radius: 0; }
+
+    .blk { background: #14181b; color: #fff; flex: 1; }   /* the black details panel */
+    /* Plain tags inside the black panel get a dark background so the white text is readable */
+    .blk .pill:not(.Critical):not(.High):not(.Medium) { background: #2d3639; color: #fff; }
+
+    /* ===============================================================
+       WORKER PHONE: STATUS BUTTONS
+       The "Fixed" button glows green when selected.
+       =============================================================== */
+    .fx { display: flex; gap: 8px; }
+    .fx button { flex: 1; border: 2px solid var(--line); background: var(--card); }
+    .fx button.lit {
+      background: var(--ok);
+      color: #fff;
+      border-color: var(--ok);
+      box-shadow: 0 0 0 4px #17855a44, 0 0 18px #17855a99;   /* the glow */
+    }
+
+    /* Green banner shown on the community phone when a report is fixed */
+    .ban { background: var(--ok); color: #fff; padding: 12px 16px; font-weight: 600; }
+
+    /* ===============================================================
+       SMALL SCREENS (real phones)
+       Phone frames go full screen and the desktop layout stacks in one column.
+       =============================================================== */
+    @media (max-width: 760px) {
+      .dg { grid-template-columns: 1fr; }
+      .dg > div:first-child { border-right: 0; border-bottom: 1px solid var(--line); }
+      .two { grid-template-columns: 1fr; }
+      .ph { height: calc(100dvh - 90px); border-width: 0; border-radius: 0; }
+      .view { padding: 0; }
+    }
+
+  </style>
+</head>
+
+
+<body>
+
+  <!-- ===============================================================
+       PART 2: PAGE STRUCTURE
+       These are mostly empty boxes. The JavaScript below fills them in.
+       =============================================================== -->
+
+  <!-- Loading screen (removed after 10 seconds or when "Skip loading" is pressed) -->
+  <div id="load">
+    <h1 class="hd">Patch</h1>
+    <div class="t"><i></i></div>
+    <button onclick="skip()">Skip loading</button>
+  </div>
+
+  <!-- The three switcher buttons at the top -->
+  <nav id="sw"></nav>
+
+  <main>
+    <section class="view on" id="v-c"><div class="ph" id="ph-c"></div></section>  <!-- Community phone -->
+    <section class="view"    id="v-b"><div class="desk" id="desk"></div></section> <!-- Business desktop -->
+    <section class="view"    id="v-w"><div class="ph" id="ph-w"></div></section>  <!-- Worker phone -->
+  </main>
+
+
+  <script>
+
+    /* ===============================================================
+       PART 3: JAVASCRIPT
+       =============================================================== */
+
+    /* Shortcut: $('abc') means "find the element with id abc" */
+    const $ = s => document.getElementById(s);
+
+
+    /* ---------------------------------------------------------------
+       THE MAP
+       Draws a simple map as an image (SVG). It is an illustration, not
+       a live map.
+         pin = 1 shows the red damage pin
+         me  = 1 shows the blue "you are here" dot
+       --------------------------------------------------------------- */
+    const MAP = (pin, me) => `
+      <svg class="map" viewBox="0 0 300 330" preserveAspectRatio="xMidYMid slice" aria-label="Map">
+        <rect width="300" height="330" fill="#dfe6dc"/>
+        <rect x="20"  y="30"  width="120" height="110" rx="10" fill="#b9d8b0"/>   <!-- park -->
+        <rect x="170" y="190" width="110" height="110" rx="10" fill="#c9dcc2"/>   <!-- green block -->
+        <path d="M0 170H300M150 0V330M0 60L300 280" stroke="#fff" stroke-width="14" fill="none"/>   <!-- roads -->
+        <path d="M0 170H300M150 0V330" stroke="#c7cdca" stroke-width="1.5" stroke-dasharray="6 6" fill="none"/>  <!-- road lines -->
+        <text x="34" y="92" font-size="11" fill="#3c6b3a" font-family="Barlow">Albert Park</text>
+        ${me ? `
+          <circle cx="95" cy="235" r="16" fill="#2b7fff33"/>
+          <circle cx="95" cy="235" r="7" fill="#2b7fff" stroke="#fff" stroke-width="3"/>` : ''}
+        ${pin ? `
+          <path d="M150 120c-13 0-23 10-23 22 0 17 23 38 23 38s23-21 23-38c0-12-10-22-23-22z" fill="#c93a2b" stroke="#fff" stroke-width="3"/>
+          <circle cx="150" cy="142" r="8" fill="#fff"/>` : ''}
+      </svg>`;
+
+
+    /* ---------------------------------------------------------------
+       FIXED DATA
+       --------------------------------------------------------------- */
+
+    /* Workers the business can assign. Edit names and skills here. */
+    const W = [
+      { n: 'Matt',  s: 'Paving and concrete', d: '0.8 km' },
+      { n: 'Priya', s: 'General repairs',     d: '1.4 km' },
+      { n: 'Sam',   s: 'Landscaping',         d: '2.1 km' }
+    ];
+
+    /* Damage types shown on the report page */
+    const TYPES = ['Footpath damage', 'Broken bench', 'Lighting', 'Graffiti', 'Accessibility', 'Other'];
+
+
+    /* ---------------------------------------------------------------
+       CASES (the list of reported problems)
+       These three are already in the system. The community report
+       adds a fourth when it is submitted.
+       status goes:  Open -> Assigned -> Accepted -> Fixed
+       score is used to sort by urgency (higher = more urgent)
+       --------------------------------------------------------------- */
+    let cases = [
+      { id: 'C-101', title: 'Streetlight out',          type: 'Lighting',     loc: 'Smith St',    urgency: 'High',   score: 78, status: 'Open', desc: 'Light out at the crossing. Dark at night.' },
+      { id: 'C-102', title: 'Broken bench',             type: 'Broken bench', loc: 'Albert Park', urgency: 'Medium', score: 62, status: 'Open', desc: 'Slat missing on the bench by the playground.' },
+      { id: 'C-103', title: 'Graffiti on toilet block', type: 'Graffiti',     loc: 'Albert Park', urgency: 'Low',    score: 30, status: 'Open', desc: 'Tagging on the east wall.' }
+    ];
+
+
+    /* ---------------------------------------------------------------
+       APP STATE
+       Remembers what the user is doing right now.
+       --------------------------------------------------------------- */
+    let st = {
+      nav:    'c',      // which of the three views is showing: 'c' community, 'b' business, 'w' worker
+      navOpen: true,    // is the switcher menu showing? (false = hidden, only "Show menu" is left)
+      c:      'home',   // which community screen: 'home', 'report' or 'done'
+      photo:  null,     // photo chosen on the report page
+      type:   null,     // damage type chosen on the report page
+      desc:   '',       // description typed on the report page
+      sel:    null,     // id of the case selected in the business list
+      wphoto: null,     // photo Matt uploads of the fix
+      fixed:  false,    // has Matt pressed the "Fixed" button?
+      wdesc:  ''        // description Matt types
+    };
+
+
+    /* ---------------------------------------------------------------
+       HELPER FUNCTIONS
+       --------------------------------------------------------------- */
+
+    /* The job currently assigned to Matt (assigned or accepted, not yet fixed) */
+    const wj = () => cases.find(c => c.worker === 'Matt' && (c.status === 'Assigned' || c.status === 'Accepted'));
+
+    /* The case the community user reported */
+    const mine = () => cases.find(c => c.mine);
+
+    /* Photo upload box. Used on the report page and the worker update page.
+       key is where the photo is saved in the state ('photo' or 'wphoto'). */
+    const up = (key, label) => `
+      <label class="up">
+        ${st[key] ? `<img src="${st[key]}" alt="Chosen photo">` : label}
+        <input type="file" accept="image/*" onchange="pickPhoto(event,'${key}')">
+      </label>`;
+
+    /* Runs when someone chooses a photo: reads the file and saves it in the state */
+    function pickPhoto(e, key) {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => { st[key] = r.result; render(); };
+      r.readAsDataURL(f);
+    }
+
+
+    /* ---------------------------------------------------------------
+       LOADING SCREEN
+       Removed after 10 seconds, or earlier with "Skip loading".
+       --------------------------------------------------------------- */
+    function skip() { $('load').remove(); }
+    setTimeout(skip, 10000);   // 10000 milliseconds = 10 seconds
+
+
+    /* ---------------------------------------------------------------
+       TOP SWITCHER
+       Draws the three pills and shows only the chosen view.
+       --------------------------------------------------------------- */
+    function nav() {
+      /* The three view buttons. Left out entirely when the menu is hidden. */
+      const pills = [
+        ['c', 'Community phone'],
+        ['b', 'Business desktop'],
+        ['w', 'Worker phone (Matt)']
+      ].map(([k, l]) => `<button class="${st.nav === k ? 'on' : ''}" onclick="go('${k}')">${l}</button>`).join('');
+
+      /* The Hide / Show button always stays, so the menu can be brought back */
+      $('sw').innerHTML = (st.navOpen ? pills : '') +
+        `<button class="swt" onclick="toggleNav()" aria-expanded="${st.navOpen}">${st.navOpen ? 'Hide menu ▲' : 'Show menu ▼'}</button>`;
+
+      ['c', 'b', 'w'].forEach(k => $('v-' + k).classList.toggle('on', st.nav === k));
+    }
+
+    function go(k) { st.nav = k; render(); }
+
+    /* Hides or shows the three view buttons */
+    function toggleNav() { st.navOpen = !st.navOpen; nav(); }
+
+
+    /* ===============================================================
+       SCREEN 1: COMMUNITY PHONE
+       Three pages: home (map), report form, and "report sent".
+       =============================================================== */
+    function renderC() {
+      const m = mine();   // the user's own report, if they have made one
+      let h = '';
+
+      /* --- HOME: map with pin and Report button --- */
+      if (st.c === 'home') {
+        h = `
+        <div class="scr on">
+
+          <!-- Green banner appears once the report has been fixed -->
+          ${m && m.status === 'Fixed' ? `<div class="ban">Your report was fixed by ${m.worker}. See the update below.</div>` : ''}
+
+          <div class="bar"><h2>Patch</h2><span>Albert Park</span></div>
+
+          <div style="flex:1;min-height:0;position:relative">
+            ${MAP(1, 1)}
+
+            <!-- Card floating over the map. Before reporting it shows "already reported by 3 neighbours".
+                 After reporting it shows the live status of the user's case. -->
+            ${m ? `
+              <div class="card" style="position:absolute;left:12px;right:12px;top:12px">
+                <b>${m.title}</b><br>
+                <span class="pill ${m.status === 'Fixed' ? 'Fixed' : 'Medium'}">
+                  ${m.status === 'Open' ? 'Reported'
+                  : m.status === 'Assigned' ? 'Matched to a worker'
+                  : m.status === 'Accepted' ? 'Worker on the way'
+                  : 'Fixed'}
+                </span>
+              </div>` : `
+              <div class="card" style="position:absolute;left:12px;right:12px;top:12px">
+                <b>Uneven path near the oak trees</b><br>
+                <span style="color:var(--mut)">Already reported by 3 neighbours</span>
+              </div>`}
+          </div>
+
+          <div class="foot"><button class="pri" onclick="st.c='report';render()">Report an issue</button></div>
+        </div>`;
+      }
+
+      /* --- REPORT FORM: photo, damage type, description, submit --- */
+      if (st.c === 'report') {
+        h = `
+        <div class="scr on">
+          <div class="bar"><button onclick="st.c='home';render()">Back</button><h2>Report an issue</h2></div>
+
+          <div class="pad">
+            <b>Add a photo</b>
+            ${up('photo', 'Tap to take or choose a photo')}
+
+            <b>Type of damage</b>
+            <div class="chips">
+              ${TYPES.map(t => `<button class="${st.type === t ? 'on' : ''}" onclick="st.type='${t}';render()">${t}</button>`).join('')}
+            </div>
+
+            <b>Describe the problem</b>
+            <textarea oninput="st.desc=this.value" placeholder="What is damaged and why is it a risk?">${st.desc}</textarea>
+
+            <div class="card" style="color:var(--mut)">Location: Albert Park, near the oak trees</div>
+          </div>
+
+          <!-- Submit stays disabled until a damage type is chosen -->
+          <div class="foot">
+            <button class="pri" ${st.type ? '' : 'disabled'} onclick="submitReport()">
+              ${st.type ? 'Submit report' : 'Choose a type to submit'}
+            </button>
+          </div>
+        </div>`;
+      }
+
+      /* --- CONFIRMATION: shown right after submitting --- */
+      if (st.c === 'done') {
+        h = `
+        <div class="scr on">
+          <div class="bar"><h2>Report sent</h2></div>
+          <div class="pad">
+            <div class="card">
+              <h3 style="font-size:26px">Thanks, we have your report</h3>
+              <p>Council has it now and will match it to a skilled local worker. You will see updates here.</p>
+            </div>
+            <div class="card">
+              <b>${m.title}</b><br>
+              <span class="pill Critical">Critical</span> <span class="pill">Case ${m.id}</span>
+            </div>
+          </div>
+          <div class="foot"><button class="pri" onclick="st.c='home';render()">Back to map</button></div>
+        </div>`;
+      }
+
+      $('ph-c').innerHTML = h;
+    }
+
+    /* Runs when "Submit report" is pressed: adds a new Critical case to the list */
+    function submitReport() {
+      cases.push({
+        id: 'C-104',
+        title: st.type + ' in park',
+        type: st.type,
+        loc: 'Albert Park, near the oak trees',
+        urgency: 'Critical',
+        score: 95,                                   // highest score, so it sorts to the top
+        status: 'Open',
+        desc: st.desc || 'No description added.',
+        photo: st.photo,
+        mine: 1                                      // marks it as the community user's report
+      });
+      st.sel = 'C-104';    // the business view opens on this case
+      st.c = 'done';
+      render();
+    }
+
+
+    /* ===============================================================
+       SCREEN 2: BUSINESS DESKTOP
+       Left: case list sorted by urgency. Right: the selected case.
+       =============================================================== */
+    function renderB() {
+      /* Sort so the most urgent case is first */
+      const L = [...cases].sort((a, b) => b.score - a.score);
+
+      /* The selected case. If none is selected, use the most urgent. */
+      const c = cases.find(x => x.id === st.sel) || L[0];
+
+      const open = cases.filter(x => x.status === 'Open').length;
+
+      /* Photo or grey placeholder */
+      const pic = x => x ? `<img src="${x}" alt="Photo">` : 'Photo placeholder';
+
+      $('desk').innerHTML = `
+        <div class="bar"><h2 style="font-size:28px">Patch for business</h2><span>Parks team</span></div>
+
+        <div class="dg">
+
+          <!-- LEFT COLUMN: counters and case list -->
+          <div>
+            <div class="two">
+              <div class="card"><div class="hd" style="font-size:34px">${open}</div>Open cases</div>
+              <div class="card"><div class="hd" style="font-size:34px">${cases.filter(x => x.status === 'Fixed').length}</div>Fixed</div>
+            </div>
+
+            <b>Triage: most urgent first</b>
+            ${L.map(x => `
+              <button class="row ${x.id === c.id ? 'on' : ''}" onclick="st.sel='${x.id}';render()">
+                <b>${x.title}<br><small style="color:var(--mut);font-weight:400">${x.id} · ${x.loc}</small></b>
+                <span class="pill ${x.urgency}">${x.urgency}</span>
+                <span class="pill ${x.status === 'Fixed' ? 'Fixed' : ''}">${x.status}</span>
+              </button>`).join('')}
+          </div>
+
+          <!-- RIGHT COLUMN: details of the selected case -->
+          <div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <h2 style="font-size:30px;flex:1">${c.title}</h2>
+              <span class="pill ${c.urgency}">${c.urgency}</span>
+            </div>
+            <p style="color:var(--mut)">${c.loc}</p>
+            <p>${c.desc}</p>
+
+            <!-- Same map as the phone, plus the photo of the damage -->
+            <div class="two">
+              <div style="border-radius:10px;overflow:hidden;height:170px">${MAP(1, 0)}</div>
+              <div class="ph-img">${pic(c.photo)}</div>
+            </div>
+
+            <!-- After Matt marks it fixed: show his photo and note -->
+            ${c.fixedPhoto ? `
+              <b>After the fix</b>
+              <div class="ph-img">${pic(c.fixedPhoto)}</div>
+              <p><b>${c.worker}:</b> ${c.note || 'Marked as fixed.'}</p>` : ''}
+
+            <!-- While Open: show the list of workers to assign.
+                 Otherwise: show the current status. -->
+            ${c.status === 'Open' ? `
+              <b>Assign this case</b>
+              ${c.rejected ? `<div class="card" style="border-color:var(--bad)">${c.rejected} rejected this case. Choose another worker.</div>` : ''}
+              ${W.map(w => `
+                <button class="row" onclick="assign('${c.id}','${w.n}')">
+                  <b>${w.n}<br><small style="color:var(--mut);font-weight:400">${w.s} · ${w.d} · Verified and insured</small></b>
+                  <span class="pill">Assign</span>
+                </button>`).join('')}
+            ` : `
+              <div class="card">
+                <b>Status: ${c.status}</b><br>
+                ${c.worker ? 'Worker: ' + c.worker : ''}${c.status === 'Assigned' ? '. Waiting for ' + c.worker + ' to accept.' : ''}
+              </div>`}
+          </div>
+
+        </div>`;
+    }
+
+    /* Runs when the business clicks a worker: assigns the case to them */
+    function assign(id, n) {
+      const c = cases.find(x => x.id === id);
+      c.status = 'Assigned';
+      c.worker = n;
+      c.rejected = null;    // clear any earlier rejection message
+
+      /* Reset the worker's update form so it starts blank */
+      st.wphoto = null;
+      st.fixed = false;
+      st.wdesc = '';
+      render();
+    }
+
+
+    /* ===============================================================
+       SCREEN 3: WORKER PHONE (MATT)
+       Three states:
+         - no job:        "No new jobs" (or "Job submitted" afterwards)
+         - job assigned:  map + photo, details, Accept / Reject
+         - job accepted:  update form (photo, Fixed button, description)
+       =============================================================== */
+    function renderW() {
+      const j = wj();   // Matt's current job, if any
+      let h = '';
+
+      /* --- STATE 1: nothing to do --- */
+      if (!j) {
+        const d = cases.find(c => c.worker === 'Matt' && c.status === 'Fixed');   // a job he has finished
+        h = `
+        <div class="scr on">
+          <div class="bar"><h2>Matt's jobs</h2></div>
+          <div class="pad">
+            <div class="card">
+              <h3 style="font-size:24px">${d ? 'Job submitted' : 'No new jobs'}</h3>
+              <p>${d ? 'Thanks Matt. ' + d.title + ' is marked as fixed and the reporter has been told.' : 'New jobs near you will appear here.'}</p>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      /* --- STATE 2: new job offer (Accept / Reject) --- */
+      else if (j.status === 'Assigned') {
+        h = `
+        <div class="scr on">
+          <div class="bar"><h2>New local job</h2></div>
+
+          <!-- Map on the left, photo on the right -->
+          <div class="top2">
+            <div>${MAP(1, 1)}</div>
+            <div class="ph-img">${j.photo ? `<img src="${j.photo}" alt="Damage">` : 'Photo placeholder'}</div>
+          </div>
+
+          <!-- Job details on the black background -->
+          <div class="pad blk">
+            <h3 style="font-size:28px">${j.title}</h3>
+            <div>
+              <span class="pill ${j.urgency}">${j.urgency}</span>
+              <span class="pill">0.8 km away</span>
+              <span class="pill">Council-approved site</span>
+            </div>
+            <p>${j.desc}</p>
+          </div>
+
+          <!-- Reject sends the case back to the business. Accept moves to the update form. -->
+          <div class="foot" style="display:flex;gap:10px;background:#14181b;border-top-color:#2d3639">
+            <button class="no" style="flex:1" onclick="reject('${j.id}')">Reject</button>
+            <button class="ok" style="flex:2" onclick="cases.find(c=>c.id=='${j.id}').status='Accepted';render()">Accept job</button>
+          </div>
+        </div>`;
+      }
+
+      /* --- STATE 3: update the case after the repair --- */
+      else {
+        h = `
+        <div class="scr on">
+          <div class="bar"><h2>Update case</h2></div>
+
+          <div class="pad">
+            <b>${j.title}</b>
+
+            <b>Photo of the fixed area</b>
+            ${up('wphoto', 'Tap to upload a photo of the repair')}
+
+            <!-- The Fixed button lights up green when pressed -->
+            <b>Status</b>
+            <div class="fx">
+              <button class="${!st.fixed ? 'on' : ''}" onclick="st.fixed=false;render()">In progress</button>
+              <button class="${st.fixed ? 'lit' : ''}" onclick="st.fixed=true;render()">${st.fixed ? 'Fixed ✓' : 'Fixed'}</button>
+            </div>
+
+            <b>Description</b>
+            <textarea oninput="st.wdesc=this.value" placeholder="What did you do?">${st.wdesc}</textarea>
+          </div>
+
+          <!-- Submit is disabled until Fixed is selected -->
+          <div class="foot">
+            <button class="pri" ${st.fixed ? '' : 'disabled'} onclick="finish('${j.id}')">
+              ${st.fixed ? 'Submit update' : 'Select Fixed to submit'}
+            </button>
+          </div>
+        </div>`;
+      }
+
+      $('ph-w').innerHTML = h;
+    }
+
+    /* Matt rejects the job: it goes back to Open so the business can pick someone else */
+    function reject(id) {
+      const c = cases.find(x => x.id === id);
+      c.rejected = c.worker;   // remember who rejected, to show a message to the business
+      c.worker = null;
+      c.status = 'Open';
+      render();
+    }
+
+    /* Matt submits the update: the case becomes Fixed and keeps his photo and note */
+    function finish(id) {
+      const c = cases.find(x => x.id === id);
+      c.status = 'Fixed';
+      c.fixedPhoto = st.wphoto;
+      c.note = st.wdesc;
+      render();
+    }
+
+
+    /* ===============================================================
+       MAIN RENDER
+       Redraws everything. Called after every button press so all three
+       screens always show the latest data.
+       =============================================================== */
+    function render() {
+      nav();       // top switcher
+      renderC();   // community phone
+      renderB();   // business desktop
+      renderW();   // worker phone
+    }
+
+    /* Start the app */
+    render();
+
+  </script>
+</body>
+</html>
